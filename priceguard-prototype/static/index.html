@@ -90,6 +90,47 @@
         </div>
       </section>
 
+      <section class="rule-engine" aria-label="Rule engine settings">
+        <div class="rule-engine-head">
+          <div>
+            <p class="section-label">Rule Engine Settings</p>
+            <h2>Pricing rules define PASS, REVIEW and BLOCK decisions</h2>
+            <p>Configure limits, anomaly thresholds and allowed brand relationships before running the quality gate.</p>
+          </div>
+          <div class="rule-actions">
+            <button id="resetRulesButton" type="button">Reset Defaults</button>
+            <button id="applyRulesButton" class="primary" type="button">Apply Rules</button>
+          </div>
+        </div>
+
+        <div class="rule-grid">
+          <article class="rule-card">
+            <div class="rule-card-head">
+              <h3>Discount limits</h3>
+              <span>Hard block</span>
+            </div>
+            <div id="discountRules" class="rule-list"></div>
+          </article>
+
+          <article class="rule-card">
+            <div class="rule-card-head">
+              <h3>Anomaly thresholds</h3>
+              <span>Review logic</span>
+            </div>
+            <div id="thresholdRules" class="rule-list"></div>
+          </article>
+
+          <article class="rule-card relationship-card">
+            <div class="rule-card-head">
+              <h3>Brand relationship matrix</h3>
+              <span>Allowed combinations</span>
+            </div>
+            <div id="relationshipRules" class="relationship-grid"></div>
+          </article>
+        </div>
+        <p id="ruleStatus" class="rule-status">Rules loaded from deterministic engine defaults.</p>
+      </section>
+
       <section class="summary-grid" aria-label="Analysis summary">
         <div class="metric">
           <span>Total</span>

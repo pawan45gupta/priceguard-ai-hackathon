@@ -1,5 +1,6 @@
 let currentAnalysis = null;
 let selectedFindingId = null;
+let currentRows = [];
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -16,28 +17,43 @@ const requiredFields = [
   "currency",
 ];
 
-const discountLimits = {
-  Retail: 35,
-  Enterprise: 48,
-  Distributor: 25,
-  Healthcare: 20,
-  Government: 15,
+const defaultRuleSettings = {
+  discount_limits: {
+    Retail: 35,
+    Enterprise: 48,
+    Distributor: 25,
+    Healthcare: 20,
+    Government: 15,
+  },
+  allowed_brand_groups: {
+    Orion: ["Retail", "Enterprise", "Distributor"],
+    Auralux: ["Retail", "Enterprise"],
+    Nexa: ["Retail", "Distributor", "Government"],
+    MedAxis: ["Healthcare", "Government"],
+  },
+  price_list_currency: {
+    "PL-RET-US": "USD",
+    "PL-ENT-US": "USD",
+    "PL-DIST-US": "USD",
+    "PL-HEALTH-US": "USD",
+    "PL-GOV-US": "USD",
+    "PL-RET-EU": "EUR",
+  },
+  anomaly_thresholds: {
+    review_pct: 35,
+    block_drop_pct: 60,
+    block_increase_pct: 75,
+    new_relationship_discount_pct: 30,
+  },
 };
 
-const allowedBrandGroups = {
-  Orion: ["Retail", "Enterprise", "Distributor"],
-  Auralux: ["Retail", "Enterprise"],
-  Nexa: ["Retail", "Distributor", "Government"],
-  MedAxis: ["Healthcare", "Government"],
-};
+let currentRuleSettings = JSON.parse(JSON.stringify(defaultRuleSettings));
 
-const priceListCurrency = {
-  "PL-RET-US": "USD",
-  "PL-ENT-US": "USD",
-  "PL-DIST-US": "USD",
-  "PL-HEALTH-US": "USD",
-  "PL-GOV-US": "USD",
-  "PL-RET-EU": "EUR",
+const thresholdLabels = {
+  review_pct: "Review movement %",
+  block_drop_pct: "Block price drop %",
+  block_increase_pct: "Block price increase %",
+  new_relationship_discount_pct: "New relationship discount %",
 };
 
 const knownCustomers = {
@@ -91,7 +107,7 @@ function generatedDemoRows() {
       expiry_date: `2027-10-${String(day).padStart(2, "0")}`,
       list_price: (price + (i % 11) * 2).toFixed(2),
       discount_pct: (discount + (i % 3)).toFixed(1),
-      currency: priceListCurrency[priceList],
+      currency: defaultRuleSettings.price_list_currency[priceList],
       requested_by: "seed.batch",
     });
   }
@@ -173,7 +189,7 @@ function parseCsv(text) {
   });
 }
 
-function evidenceForRow(row, seenKeys) {
+function evidenceForRow(row, seenKeys, ruleSettings = currentRuleSettings) {
   const evidence = [];
   const missing = requiredFields.filter((field) => row[field] === "" || row[field] == null);
   if (missing.length) {
@@ -206,7 +222,7 @@ function evidenceForRow(row, seenKeys) {
     });
   }
 
-  const allowedGroups = allowedBrandGroups[row.brand];
+  const allowedGroups = ruleSettings.allowed_brand_groups[row.brand];
   if (allowedGroups && !allowedGroups.includes(row.business_group)) {
     evidence.push({
       severity: "BLOCK",
@@ -217,7 +233,7 @@ function evidenceForRow(row, seenKeys) {
     });
   }
 
-  const maxDiscount = discountLimits[row.business_group];
+  const maxDiscount = ruleSettings.discount_limits[row.business_group];
   if (maxDiscount && row.discount_pct > maxDiscount) {
     evidence.push({
       severity: "BLOCK",
@@ -228,7 +244,7 @@ function evidenceForRow(row, seenKeys) {
     });
   }
 
-  const expectedCurrency = priceListCurrency[row.price_list] ?? "USD";
+  const expectedCurrency = ruleSettings.price_list_currency[row.price_list] ?? "USD";
   if (row.currency !== expectedCurrency) {
     evidence.push({
       severity: "BLOCK",
@@ -255,7 +271,19 @@ function evidenceForRow(row, seenKeys) {
   const median = row.sku.startsWith("SKU-RISK-") ? 1000 : 0;
   if (median) {
     const delta = (row.list_price - median) / median;
-    if (Math.abs(delta) >= 0.35) {
+    const thresholds = ruleSettings.anomaly_thresholds;
+    const blockDrop = thresholds.block_drop_pct / 100;
+    const blockIncrease = thresholds.block_increase_pct / 100;
+    const reviewThreshold = thresholds.review_pct / 100;
+    if (delta <= -blockDrop || delta >= blockIncrease) {
+      evidence.push({
+        severity: "BLOCK",
+        rule_id: "ANOM-002",
+        title: "Historical price movement is outside the block threshold",
+        detail: `List price ${row.list_price.toFixed(2)} differs from historical median ${median.toFixed(2)} by ${(delta * 100).toFixed(1)}%.`,
+        score: 91,
+      });
+    } else if (Math.abs(delta) >= reviewThreshold) {
       evidence.push({
         severity: "REVIEW",
         rule_id: "ANOM-001",
@@ -267,7 +295,7 @@ function evidenceForRow(row, seenKeys) {
   }
 
   const known = knownCustomers[row.business_group] ?? [];
-  if (!known.includes(row.customer) && row.discount_pct >= 30) {
+  if (!known.includes(row.customer) && row.discount_pct >= ruleSettings.anomaly_thresholds.new_relationship_discount_pct) {
     evidence.push({
       severity: "REVIEW",
       rule_id: "REL-011",
@@ -280,13 +308,13 @@ function evidenceForRow(row, seenKeys) {
   return evidence;
 }
 
-function analyzeRows(rows) {
+function analyzeRows(rows, ruleSettings = currentRuleSettings) {
   const seenKeys = new Map();
   const statusCounts = { PASS: 0, REVIEW: 0, BLOCK: 0 };
   const findings = [];
 
   rows.forEach((row) => {
-    const evidence = evidenceForRow(row, seenKeys);
+    const evidence = evidenceForRow(row, seenKeys, ruleSettings);
     if (!evidence.length) {
       statusCounts.PASS += 1;
       return;
@@ -325,6 +353,7 @@ function analyzeRows(rows) {
       topConcerns: topConcerns(findings),
     },
     findings: findings.sort((a, b) => b.riskScore - a.riskScore),
+    ruleSettings,
   };
 }
 
@@ -346,6 +375,7 @@ function topConcerns(findings) {
   });
   const labels = {
     "ANOM-001": "Historical price movement",
+    "ANOM-002": "Blocked historical movement",
     "REL-011": "New customer relationship",
     "DISC-014": "Discount above limit",
     "REL-007": "Invalid brand and business-group mapping",
@@ -359,6 +389,86 @@ function topConcerns(findings) {
 
 function statusBadge(status) {
   return `<span class="badge ${status}">${status}</span>`;
+}
+
+function cloneSettings(settings) {
+  return JSON.parse(JSON.stringify(settings));
+}
+
+function formatPercent(value) {
+  const number = Number(value) || 0;
+  return Number.isInteger(number) ? String(number) : number.toFixed(1);
+}
+
+function renderRuleSettings() {
+  $("#discountRules").innerHTML = Object.entries(currentRuleSettings.discount_limits)
+    .map(
+      ([group, value]) => `
+        <label class="rule-row">
+          <span>${group}</span>
+          <input data-rule-scope="discount" data-rule-key="${group}" type="number" min="0" max="100" step="0.5" value="${formatPercent(value)}" aria-label="${group} discount limit" />
+        </label>
+      `
+    )
+    .join("");
+
+  $("#thresholdRules").innerHTML = Object.entries(thresholdLabels)
+    .map(
+      ([key, label]) => `
+        <label class="rule-row">
+          <span>${label}</span>
+          <input data-rule-scope="threshold" data-rule-key="${key}" type="number" min="0" max="100" step="0.5" value="${formatPercent(currentRuleSettings.anomaly_thresholds[key])}" aria-label="${label}" />
+        </label>
+      `
+    )
+    .join("");
+
+  const brands = Object.keys(currentRuleSettings.allowed_brand_groups);
+  const groups = Object.keys(currentRuleSettings.discount_limits);
+  $("#relationshipRules").innerHTML = [
+    `<span class="matrix-head">Brand</span>`,
+    ...groups.map((group) => `<span class="matrix-head">${group}</span>`),
+    ...brands.flatMap((brand) => {
+      const allowed = new Set(currentRuleSettings.allowed_brand_groups[brand]);
+      return [
+        `<span class="matrix-brand">${brand}</span>`,
+        ...groups.map(
+          (group) => `
+            <label class="matrix-toggle" aria-label="${brand} ${group}">
+              <input data-rule-scope="relationship" data-brand="${brand}" data-group="${group}" type="checkbox" ${allowed.has(group) ? "checked" : ""} />
+              <span>Allow</span>
+            </label>
+          `
+        ),
+      ];
+    }),
+  ].join("");
+}
+
+function boundedPercent(value) {
+  return Math.max(0, Math.min(100, Number(value) || 0));
+}
+
+function collectRuleSettings() {
+  const settings = cloneSettings(currentRuleSettings);
+  document.querySelectorAll("[data-rule-scope='discount']").forEach((input) => {
+    settings.discount_limits[input.dataset.ruleKey] = boundedPercent(input.value);
+  });
+  document.querySelectorAll("[data-rule-scope='threshold']").forEach((input) => {
+    settings.anomaly_thresholds[input.dataset.ruleKey] = boundedPercent(input.value);
+  });
+
+  settings.allowed_brand_groups = Object.fromEntries(
+    Object.keys(settings.allowed_brand_groups).map((brand) => [brand, []])
+  );
+  document.querySelectorAll("[data-rule-scope='relationship']:checked").forEach((input) => {
+    settings.allowed_brand_groups[input.dataset.brand].push(input.dataset.group);
+  });
+  return settings;
+}
+
+function setRuleStatus(message) {
+  $("#ruleStatus").textContent = message;
 }
 
 function renderSummary(summary) {
@@ -392,7 +502,12 @@ function renderFindings(findings) {
   document.querySelectorAll("[data-finding-id]").forEach((row) => {
     row.addEventListener("click", () => selectFinding(row.dataset.findingId));
   });
-  if (findings.length) selectFinding(findings[0].id);
+  if (findings.length) {
+    selectFinding(findings[0].id);
+  } else {
+    selectedFindingId = null;
+    $("#detailPane").innerHTML = `<div class="empty-state">No review or block findings for this input.</div>`;
+  }
 }
 
 function selectFinding(id) {
@@ -510,21 +625,42 @@ function submitFeedback(decision) {
 }
 
 async function loadSeed() {
-  currentAnalysis = analyzeRows(generatedDemoRows());
+  currentRows = generatedDemoRows();
+  refreshAnalysis();
+  setRuleStatus("Rules loaded from deterministic engine defaults.");
+}
+
+function refreshAnalysis() {
+  if (!currentRows.length) currentRows = generatedDemoRows();
+  currentAnalysis = analyzeRows(currentRows, currentRuleSettings);
+  renderRuleSettings();
   renderSummary(currentAnalysis.summary);
   renderFindings(currentAnalysis.findings);
 }
 
 async function analyzeFile(file) {
   const text = await file.text();
-  currentAnalysis = analyzeRows(parseCsv(text));
-  renderSummary(currentAnalysis.summary);
-  renderFindings(currentAnalysis.findings);
+  currentRows = parseCsv(text);
+  refreshAnalysis();
+}
+
+function applyRuleSettings() {
+  currentRuleSettings = collectRuleSettings();
+  refreshAnalysis();
+  setRuleStatus("Rules applied. Analysis refreshed with the active rule set.");
+}
+
+function resetRuleSettings() {
+  currentRuleSettings = cloneSettings(defaultRuleSettings);
+  refreshAnalysis();
+  setRuleStatus("Defaults restored. Analysis refreshed with baseline governance rules.");
 }
 
 $("#health").textContent = "Online";
 $("#seedButton").addEventListener("click", loadSeed);
 $("#analyzeButton").addEventListener("click", loadSeed);
+$("#applyRulesButton").addEventListener("click", applyRuleSettings);
+$("#resetRulesButton").addEventListener("click", resetRuleSettings);
 $("#fileInput").addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (file) analyzeFile(file);

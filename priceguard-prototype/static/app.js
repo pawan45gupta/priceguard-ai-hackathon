@@ -1,8 +1,16 @@
 let currentCsv = "";
 let currentAnalysis = null;
 let selectedFindingId = null;
+let currentRuleSettings = null;
 
 const $ = (selector) => document.querySelector(selector);
+
+const thresholdLabels = {
+  review_pct: "Review movement %",
+  block_drop_pct: "Block price drop %",
+  block_increase_pct: "Block price increase %",
+  new_relationship_discount_pct: "New relationship discount %",
+};
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
@@ -17,6 +25,91 @@ async function request(path, options = {}) {
 
 function statusBadge(status) {
   return `<span class="badge ${status}">${status}</span>`;
+}
+
+function cloneSettings(settings) {
+  return JSON.parse(JSON.stringify(settings));
+}
+
+function formatPercent(value) {
+  const number = Number(value) || 0;
+  return Number.isInteger(number) ? String(number) : number.toFixed(1);
+}
+
+function renderRuleSettings() {
+  if (!currentRuleSettings) return;
+
+  const discountRules = $("#discountRules");
+  discountRules.innerHTML = Object.entries(currentRuleSettings.discount_limits)
+    .map(
+      ([group, value]) => `
+        <label class="rule-row">
+          <span>${group}</span>
+          <input data-rule-scope="discount" data-rule-key="${group}" type="number" min="0" max="100" step="0.5" value="${formatPercent(value)}" aria-label="${group} discount limit" />
+        </label>
+      `
+    )
+    .join("");
+
+  const thresholdRules = $("#thresholdRules");
+  thresholdRules.innerHTML = Object.entries(thresholdLabels)
+    .map(
+      ([key, label]) => `
+        <label class="rule-row">
+          <span>${label}</span>
+          <input data-rule-scope="threshold" data-rule-key="${key}" type="number" min="0" max="100" step="0.5" value="${formatPercent(currentRuleSettings.anomaly_thresholds[key])}" aria-label="${label}" />
+        </label>
+      `
+    )
+    .join("");
+
+  const brands = Object.keys(currentRuleSettings.allowed_brand_groups);
+  const groups = Object.keys(currentRuleSettings.discount_limits);
+  const relationshipRules = $("#relationshipRules");
+  relationshipRules.innerHTML = [
+    `<span class="matrix-head">Brand</span>`,
+    ...groups.map((group) => `<span class="matrix-head">${group}</span>`),
+    ...brands.flatMap((brand) => {
+      const allowed = new Set(currentRuleSettings.allowed_brand_groups[brand] || []);
+      return [
+        `<span class="matrix-brand">${brand}</span>`,
+        ...groups.map(
+          (group) => `
+            <label class="matrix-toggle" aria-label="${brand} ${group}">
+              <input data-rule-scope="relationship" data-brand="${brand}" data-group="${group}" type="checkbox" ${allowed.has(group) ? "checked" : ""} />
+              <span>Allow</span>
+            </label>
+          `
+        ),
+      ];
+    }),
+  ].join("");
+}
+
+function boundedPercent(value) {
+  return Math.max(0, Math.min(100, Number(value) || 0));
+}
+
+function collectRuleSettings() {
+  const settings = cloneSettings(currentRuleSettings);
+  document.querySelectorAll("[data-rule-scope='discount']").forEach((input) => {
+    settings.discount_limits[input.dataset.ruleKey] = boundedPercent(input.value);
+  });
+  document.querySelectorAll("[data-rule-scope='threshold']").forEach((input) => {
+    settings.anomaly_thresholds[input.dataset.ruleKey] = boundedPercent(input.value);
+  });
+
+  settings.allowed_brand_groups = Object.fromEntries(
+    Object.keys(settings.allowed_brand_groups).map((brand) => [brand, []])
+  );
+  document.querySelectorAll("[data-rule-scope='relationship']:checked").forEach((input) => {
+    settings.allowed_brand_groups[input.dataset.brand].push(input.dataset.group);
+  });
+  return settings;
+}
+
+function setRuleStatus(message) {
+  $("#ruleStatus").textContent = message;
 }
 
 function renderSummary(summary) {
@@ -121,17 +214,45 @@ async function loadSeed() {
   const payload = await request("/api/seed");
   currentCsv = payload.csv;
   currentAnalysis = payload.analysis;
+  currentRuleSettings = payload.ruleSettings || currentAnalysis.ruleSettings;
+  renderRuleSettings();
   renderSummary(currentAnalysis.summary);
   renderFindings(currentAnalysis.findings);
+  setRuleStatus("Rules loaded from deterministic engine defaults.");
 }
 
 async function analyzeCurrent() {
   currentAnalysis = await request("/api/analyze", {
     method: "POST",
-    body: JSON.stringify({ csv: currentCsv }),
+    body: JSON.stringify({ csv: currentCsv, ruleSettings: currentRuleSettings }),
   });
+  currentRuleSettings = currentAnalysis.ruleSettings || currentRuleSettings;
+  renderRuleSettings();
   renderSummary(currentAnalysis.summary);
   renderFindings(currentAnalysis.findings);
+}
+
+async function applyRuleSettings() {
+  currentRuleSettings = collectRuleSettings();
+  const payload = await request("/api/rule-settings", {
+    method: "POST",
+    body: JSON.stringify({ ruleSettings: currentRuleSettings }),
+  });
+  currentRuleSettings = payload.ruleSettings;
+  renderRuleSettings();
+  setRuleStatus("Rules applied. Analysis refreshed with the active rule set.");
+  await analyzeCurrent();
+}
+
+async function resetRuleSettings() {
+  const payload = await request("/api/rule-settings", {
+    method: "POST",
+    body: JSON.stringify({ reset: true }),
+  });
+  currentRuleSettings = payload.ruleSettings;
+  renderRuleSettings();
+  setRuleStatus("Defaults restored. Analysis refreshed with baseline governance rules.");
+  await analyzeCurrent();
 }
 
 async function runRca() {
@@ -177,6 +298,8 @@ async function submitFeedback(decision) {
 function wireEvents() {
   $("#seedButton").addEventListener("click", loadSeed);
   $("#analyzeButton").addEventListener("click", analyzeCurrent);
+  $("#applyRulesButton").addEventListener("click", applyRuleSettings);
+  $("#resetRulesButton").addEventListener("click", resetRuleSettings);
   $("#fileInput").addEventListener("change", async (event) => {
     const file = event.target.files[0];
     if (!file) return;

@@ -9,6 +9,7 @@ Codex-assisted workflow would move from finding to engineering action.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import io
 import json
@@ -19,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 
 
@@ -63,6 +64,20 @@ PRICE_LIST_CURRENCY = {
     "PL-RET-EU": "EUR",
 }
 
+DEFAULT_RULE_SETTINGS = {
+    "discount_limits": DISCOUNT_LIMITS,
+    "allowed_brand_groups": {
+        brand: sorted(groups) for brand, groups in ALLOWED_BRAND_GROUPS.items()
+    },
+    "price_list_currency": PRICE_LIST_CURRENCY,
+    "anomaly_thresholds": {
+        "review_pct": 35.0,
+        "block_drop_pct": 60.0,
+        "block_increase_pct": 75.0,
+        "new_relationship_discount_pct": 30.0,
+    },
+}
+
 KNOWN_CUSTOMERS = {
     "Retail": {"Northwind Market", "BrightCart", "Urban Basket", "Metro Value"},
     "Enterprise": {"Northwind Health", "ACME Operations", "Zenith Labs"},
@@ -79,6 +94,7 @@ CODE_HOTSPOTS = {
 }
 
 FINDING_CACHE: Dict[str, Dict] = {}
+RULE_SETTINGS: Dict = copy.deepcopy(DEFAULT_RULE_SETTINGS)
 
 
 @dataclass
@@ -88,6 +104,51 @@ class Evidence:
     title: str
     detail: str
     score: int
+
+
+def clone_rule_settings() -> Dict:
+    return copy.deepcopy(RULE_SETTINGS)
+
+
+def reset_rule_settings() -> Dict:
+    RULE_SETTINGS.clear()
+    RULE_SETTINGS.update(copy.deepcopy(DEFAULT_RULE_SETTINGS))
+    return clone_rule_settings()
+
+
+def sanitized_rule_settings(candidate: Optional[Dict]) -> Dict:
+    settings = copy.deepcopy(DEFAULT_RULE_SETTINGS)
+    if not isinstance(candidate, dict):
+        return settings
+
+    for group, value in candidate.get("discount_limits", {}).items():
+        if group in settings["discount_limits"]:
+            settings["discount_limits"][group] = max(0.0, min(100.0, parse_number(value)))
+
+    for brand, groups in candidate.get("allowed_brand_groups", {}).items():
+        if brand in settings["allowed_brand_groups"] and isinstance(groups, list):
+            cleaned = [str(group) for group in groups if str(group) in DISCOUNT_LIMITS]
+            settings["allowed_brand_groups"][brand] = sorted(set(cleaned))
+
+    for price_list, currency in candidate.get("price_list_currency", {}).items():
+        if price_list in settings["price_list_currency"]:
+            settings["price_list_currency"][price_list] = str(currency).strip().upper() or "USD"
+
+    thresholds = candidate.get("anomaly_thresholds", {})
+    if isinstance(thresholds, dict):
+        for key in settings["anomaly_thresholds"]:
+            if key in thresholds:
+                settings["anomaly_thresholds"][key] = max(
+                    0.0, min(100.0, parse_number(thresholds[key]))
+                )
+
+    return settings
+
+
+def update_rule_settings(candidate: Optional[Dict]) -> Dict:
+    RULE_SETTINGS.clear()
+    RULE_SETTINGS.update(sanitized_rule_settings(candidate))
+    return clone_rule_settings()
 
 
 def parse_date(value: str) -> datetime:
@@ -229,8 +290,9 @@ def generated_demo_rows() -> List[Dict]:
     return [normalize_row(row, idx + 1) for idx, row in enumerate(rows)]
 
 
-def expected_currency(price_list: str) -> str:
-    return PRICE_LIST_CURRENCY.get(price_list, "USD")
+def expected_currency(price_list: str, rule_settings: Optional[Dict] = None) -> str:
+    settings = rule_settings or RULE_SETTINGS
+    return settings.get("price_list_currency", {}).get(price_list, "USD")
 
 
 def historical_median(row: Dict) -> float:
@@ -247,7 +309,10 @@ def known_relationship(row: Dict) -> bool:
     return row["customer"] in customers
 
 
-def evidence_for_row(row: Dict, seen_keys: Dict[Tuple, int]) -> List[Evidence]:
+def evidence_for_row(
+    row: Dict, seen_keys: Dict[Tuple, int], rule_settings: Optional[Dict] = None
+) -> List[Evidence]:
+    settings = rule_settings or RULE_SETTINGS
     evidence: List[Evidence] = []
 
     missing = [field for field in REQUIRED_FIELDS if row.get(field) in ("", None)]
@@ -288,7 +353,7 @@ def evidence_for_row(row: Dict, seen_keys: Dict[Tuple, int]) -> List[Evidence]:
 
     brand = row["brand"]
     group = row["business_group"]
-    allowed_groups = ALLOWED_BRAND_GROUPS.get(brand)
+    allowed_groups = set(settings.get("allowed_brand_groups", {}).get(brand, []))
     if allowed_groups and group not in allowed_groups:
         evidence.append(
             Evidence(
@@ -300,7 +365,7 @@ def evidence_for_row(row: Dict, seen_keys: Dict[Tuple, int]) -> List[Evidence]:
             )
         )
 
-    max_discount = DISCOUNT_LIMITS.get(group, 0)
+    max_discount = settings.get("discount_limits", {}).get(group, 0)
     if max_discount and row["discount_pct"] > max_discount:
         evidence.append(
             Evidence(
@@ -312,13 +377,14 @@ def evidence_for_row(row: Dict, seen_keys: Dict[Tuple, int]) -> List[Evidence]:
             )
         )
 
-    if row["currency"] != expected_currency(row["price_list"]):
+    expected = expected_currency(row["price_list"], settings)
+    if row["currency"] != expected:
         evidence.append(
             Evidence(
                 "BLOCK",
                 "CUR-002",
                 "Currency does not match the price list",
-                f"{row['price_list']} expects {expected_currency(row['price_list'])}, request contains {row['currency']}.",
+                f"{row['price_list']} expects {expected}, request contains {row['currency']}.",
                 90,
             )
         )
@@ -345,7 +411,11 @@ def evidence_for_row(row: Dict, seen_keys: Dict[Tuple, int]) -> List[Evidence]:
     median = historical_median(row)
     if median:
         delta = (row["list_price"] - median) / median
-        if delta <= -0.6 or delta >= 0.75:
+        thresholds = settings.get("anomaly_thresholds", {})
+        block_drop = thresholds.get("block_drop_pct", 60.0) / 100
+        block_increase = thresholds.get("block_increase_pct", 75.0) / 100
+        review_threshold = thresholds.get("review_pct", 35.0) / 100
+        if delta <= -block_drop or delta >= block_increase:
             evidence.append(
                 Evidence(
                     "BLOCK",
@@ -355,7 +425,7 @@ def evidence_for_row(row: Dict, seen_keys: Dict[Tuple, int]) -> List[Evidence]:
                     91,
                 )
             )
-        elif abs(delta) >= 0.35:
+        elif abs(delta) >= review_threshold:
             evidence.append(
                 Evidence(
                     "REVIEW",
@@ -366,7 +436,10 @@ def evidence_for_row(row: Dict, seen_keys: Dict[Tuple, int]) -> List[Evidence]:
                 )
             )
 
-    if not known_relationship(row) and row["discount_pct"] >= 30:
+    new_relationship_discount = settings.get("anomaly_thresholds", {}).get(
+        "new_relationship_discount_pct", 30.0
+    )
+    if not known_relationship(row) and row["discount_pct"] >= new_relationship_discount:
         evidence.append(
             Evidence(
                 "REVIEW",
@@ -415,13 +488,14 @@ def confidence_for(evidence: List[Evidence]) -> float:
     return 0.78
 
 
-def analyze_rows(rows: List[Dict]) -> Dict:
+def analyze_rows(rows: List[Dict], rule_settings: Optional[Dict] = None) -> Dict:
+    settings = sanitized_rule_settings(rule_settings) if rule_settings else clone_rule_settings()
     seen_keys: Dict[Tuple, int] = {}
     findings: List[Dict] = []
     status_counts = {"PASS": 0, "REVIEW": 0, "BLOCK": 0}
 
     for row in rows:
-        evidence = evidence_for_row(row, seen_keys)
+        evidence = evidence_for_row(row, seen_keys, settings)
         if not evidence:
             status_counts["PASS"] += 1
             continue
@@ -473,6 +547,7 @@ def analyze_rows(rows: List[Dict]) -> Dict:
     return {
         "summary": summary,
         "findings": sorted(findings, key=lambda item: item["riskScore"], reverse=True),
+        "ruleSettings": settings,
         "auditTrail": [
             "Parsed pricing input",
             "Applied deterministic data and business rules",
@@ -643,9 +718,20 @@ class PriceGuardHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/health":
             json_response(self, 200, {"status": "ok", "service": "priceguard"})
             return
+        if parsed.path == "/api/rule-settings":
+            json_response(self, 200, {"ruleSettings": clone_rule_settings()})
+            return
         if parsed.path == "/api/seed":
             rows = generated_demo_rows()
-            json_response(self, 200, {"csv": rows_to_csv(rows), "analysis": analyze_rows(rows)})
+            json_response(
+                self,
+                200,
+                {
+                    "csv": rows_to_csv(rows),
+                    "analysis": analyze_rows(rows),
+                    "ruleSettings": clone_rule_settings(),
+                },
+            )
             return
         if parsed.path.startswith("/api/findings/") and parsed.path.endswith("/rca"):
             finding_id = unquote(parsed.path.split("/")[3])
@@ -665,7 +751,16 @@ class PriceGuardHandler(BaseHTTPRequestHandler):
                 rows = parse_csv_text(payload["csv"])
             else:
                 rows = generated_demo_rows()
-            json_response(self, 200, analyze_rows(rows))
+            rule_settings = payload.get("ruleSettings")
+            json_response(self, 200, analyze_rows(rows, rule_settings))
+            return
+        if parsed.path == "/api/rule-settings":
+            payload = self.read_json()
+            if payload.get("reset"):
+                rule_settings = reset_rule_settings()
+            else:
+                rule_settings = update_rule_settings(payload.get("ruleSettings"))
+            json_response(self, 200, {"ruleSettings": rule_settings})
             return
         if re.match(r"^/api/findings/[^/]+/regression-test$", parsed.path):
             finding_id = unquote(parsed.path.split("/")[3])
