@@ -1,0 +1,8 @@
+sku,brand,business_group,customer,price_list,effective_date,expiry_date,list_price,discount_pct,currency,requested_by
+SKU-10001,Orion,Retail,Northwind Market,PL-RET-US,2026-11-01,2027-10-31,119.00,12.0,USD,seed.batch
+SKU-10002,Auralux,Enterprise,ACME Operations,PL-ENT-US,2026-11-01,2027-10-31,820.00,18.0,USD,seed.batch
+SKU-RISK-200,Orion,Enterprise,Northwind Health,PL-ENT-US,2026-11-15,2027-11-14,610.00,42.0,USD,seed.batch
+SKU-RISK-220,Orion,Enterprise,Pilot Customer,PL-ENT-US,2026-11-15,2027-11-14,613.00,42.0,USD,seed.batch
+SKU-BLOCK-DISC-0,Auralux,Retail,BrightCart,PL-RET-US,2026-11-10,2027-11-09,510.00,46.0,USD,seed.batch
+SKU-BLOCK-REL-0,MedAxis,Retail,Urban Basket,PL-RET-US,2026-11-12,2027-11-11,445.00,18.0,USD,seed.batch
+SKU-BLOCK-DATE-0,Nexa,Government,Civic Procurement,PL-GOV-US,2026-12-31,2026-12-01,735.00,9.0,USD,seed.batch

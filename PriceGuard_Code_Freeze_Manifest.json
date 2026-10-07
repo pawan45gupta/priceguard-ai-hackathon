@@ -1,0 +1,57 @@
+{
+  "project": "PriceGuard AI Hackathon Prototype",
+  "freeze_date": "2026-10-07",
+  "source_deck": "/Users/pawangupta/Downloads/PriceGuard_AI_Hackathon.pptx",
+  "prototype": {
+    "path": "priceguard-prototype",
+    "run_command": "python3 server.py --port 8765",
+    "local_url": "http://127.0.0.1:8765",
+    "seeded_story": {
+      "total_records": 1000,
+      "valid": 950,
+      "review": 33,
+      "block": 17,
+      "risk_score": 74
+    }
+  },
+  "codex_plugin": {
+    "path": "priceguard-codex-plugin",
+    "shape": "skills-only",
+    "skills": [
+      "priceguard-rca",
+      "priceguard-release-freeze"
+    ],
+    "mcp_server_needed_now": false,
+    "mcp_server_triggers": [
+      "read-only pricing reference data lookup",
+      "read-only production log search",
+      "ticket creation",
+      "git provider and CI status lookup",
+      "deployment metadata lookup"
+    ]
+  },
+  "artifacts": [
+    "PriceGuard_Freeze_Pack.md",
+    "PriceGuard_Demo_Script.md",
+    "PriceGuard_Code_Freeze_Manifest.json",
+    "priceguard-prototype/",
+    "priceguard-codex-plugin/"
+  ],
+  "verification": {
+    "unit_tests": "python3 -m unittest discover -s tests",
+    "unit_test_status": "passed",
+    "api_smoke_status": "passed",
+    "ui_smoke_status": "passed",
+    "skill_quick_validate": "blocked by missing PyYAML in local validator environment; frontmatter and manifest checks passed"
+  },
+  "governance": {
+    "pricing_authority": "deterministic rules and existing pricing application",
+    "ai_role": "explain evidence, support RCA, generate regression-test handoffs",
+    "production_write_policy": "human approval required"
+  },
+  "known_gaps": [
+    "prototype uses seeded demo data, not live pricing systems",
+    "OpenAI explanation endpoint is represented by deterministic evidence packaging for the offline demo",
+    "MCP server is deferred until controlled live system access is approved"
+  ]
+}

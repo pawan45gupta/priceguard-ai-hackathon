@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PriceGuard AI Prototype</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">PriceGuard AI Pricing Quality</p>
+        <h1>Quality gate and root-cause assistant</h1>
+      </div>
+      <div class="status-chip" id="health">Checking</div>
+    </header>
+
+    <main class="app-shell">
+      <section class="control-band">
+        <div class="control-copy">
+          <h2>Demo input</h2>
+          <p>Seeded pricing rows reproduce the hackathon story: upload, detect, explain, investigate, prevent.</p>
+        </div>
+        <div class="actions">
+          <label class="file-control">
+            <input id="fileInput" type="file" accept=".csv,text/csv" />
+            <span>Upload CSV</span>
+          </label>
+          <button id="seedButton">Reload Seed</button>
+          <button id="analyzeButton" class="primary">Analyze</button>
+        </div>
+      </section>
+
+      <section class="summary-grid" aria-label="Analysis summary">
+        <div class="metric">
+          <span>Total</span>
+          <strong id="totalCount">0</strong>
+        </div>
+        <div class="metric pass">
+          <span>Valid</span>
+          <strong id="passCount">0</strong>
+        </div>
+        <div class="metric review">
+          <span>Review</span>
+          <strong id="reviewCount">0</strong>
+        </div>
+        <div class="metric block">
+          <span>Block</span>
+          <strong id="blockCount">0</strong>
+        </div>
+        <div class="metric risk">
+          <span>Risk score</span>
+          <strong id="riskScore">0</strong>
+        </div>
+      </section>
+
+      <section class="visual-band">
+        <div>
+          <h2>Status distribution</h2>
+          <div class="bar" aria-label="Status distribution">
+            <span id="passBar" class="pass-bar"></span>
+            <span id="reviewBar" class="review-bar"></span>
+            <span id="blockBar" class="block-bar"></span>
+          </div>
+        </div>
+        <div>
+          <h2>Top concerns</h2>
+          <ul id="concerns" class="concerns"></ul>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="findings-pane">
+          <div class="pane-head">
+            <h2>Findings</h2>
+            <span id="findingCount">0 flagged</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Finding</th>
+                  <th>Status</th>
+                  <th>Risk</th>
+                  <th>SKU</th>
+                  <th>Customer</th>
+                </tr>
+              </thead>
+              <tbody id="findingsTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="detail-pane" id="detailPane">
+          <div class="empty-state">Select a finding to inspect the evidence chain.</div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

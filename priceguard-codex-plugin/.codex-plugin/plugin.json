@@ -1,0 +1,6 @@
+{
+  "name": "priceguard-codex",
+  "version": "0.1.0",
+  "description": "Reusable Codex workflows for PriceGuard RCA and release-freeze reviews.",
+  "skills": "./skills/"
+}
