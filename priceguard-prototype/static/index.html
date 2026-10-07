@@ -8,18 +8,36 @@
   </head>
   <body>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">PriceGuard AI Pricing Quality</p>
-        <h1>Quality gate and root-cause assistant</h1>
+      <a class="brand" href="/" aria-label="PriceGuard AI home">
+        <span class="brand-mark">P</span>
+        <span>PriceGuard<span> AI</span></span>
+      </a>
+      <nav class="nav-tabs" aria-label="Primary">
+        <a class="active" href="/">Quality Gate</a>
+        <a href="#findingsTable">Findings</a>
+        <a href="#detailPane">RCA</a>
+      </nav>
+      <div class="topbar-right">
+        <span class="status-dot"></span>
+        <span id="health">Checking</span>
+        <button class="ghost-button" type="button">PG</button>
       </div>
-      <div class="status-chip" id="health">Checking</div>
     </header>
 
     <main class="app-shell">
+      <section class="page-head">
+        <div>
+          <h1>Pricing Quality Explorer</h1>
+          <p>PriceGuard demo &middot; 1,000 seeded pricing rows &middot; Select a finding to inspect the evidence chain</p>
+        </div>
+        <button id="analyzeButton" class="primary">Analyze Batch</button>
+      </section>
+
       <section class="control-band">
         <div class="control-copy">
-          <h2>Demo input</h2>
-          <p>Seeded pricing rows reproduce the hackathon story: upload, detect, explain, investigate, prevent.</p>
+          <p class="section-label">Macro Quality Signals</p>
+          <h2>Composite pricing pressure: <strong>+4.8%</strong></h2>
+          <p>CPI +3.2% &middot; PPI Metals +4.8% &middot; Steel Index +6.1% &middot; New relationship pressure +2.9%</p>
         </div>
         <div class="actions">
           <label class="file-control">
@@ -27,7 +45,48 @@
             <span>Upload CSV</span>
           </label>
           <button id="seedButton">Reload Seed</button>
-          <button id="analyzeButton" class="primary">Analyze</button>
+        </div>
+      </section>
+
+      <section class="filter-band">
+        <p class="section-label">Filter by hierarchy</p>
+        <div class="filter-grid">
+          <label>
+            Business Group
+            <select>
+              <option>All</option>
+              <option>Retail</option>
+              <option>Enterprise</option>
+              <option>Government</option>
+            </select>
+          </label>
+          <label>
+            Brand
+            <select>
+              <option>All</option>
+              <option>Orion</option>
+              <option>Auralux</option>
+              <option>Nexa</option>
+              <option>MedAxis</option>
+            </select>
+          </label>
+          <label>
+            Status
+            <select>
+              <option>All</option>
+              <option>Review</option>
+              <option>Block</option>
+            </select>
+          </label>
+          <label>
+            Price List
+            <select>
+              <option>All</option>
+              <option>PL-RET-US</option>
+              <option>PL-ENT-US</option>
+              <option>PL-GOV-US</option>
+            </select>
+          </label>
         </div>
       </section>
 
@@ -67,6 +126,12 @@
           <h2>Top concerns</h2>
           <ul id="concerns" class="concerns"></ul>
         </div>
+      </section>
+
+      <section class="mode-tabs" aria-label="Finding views">
+        <button class="selected" type="button">Pricing</button>
+        <button type="button">Risk & Evidence</button>
+        <button type="button">RCA Handoff</button>
       </section>
 
       <section class="workspace">
