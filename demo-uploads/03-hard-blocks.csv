@@ -1,0 +1,7 @@
+sku,brand,business_group,customer,price_list,effective_date,expiry_date,list_price,discount_pct,currency,requested_by
+SKU-BLOCK-DISC-901,Auralux,Retail,BrightCart,PL-RET-US,2026-11-10,2027-11-09,510.00,46.0,USD,client.demo
+SKU-BLOCK-REL-901,MedAxis,Retail,Urban Basket,PL-RET-US,2026-11-12,2027-11-11,445.00,18.0,USD,client.demo
+SKU-BLOCK-DATE-901,Nexa,Government,Civic Procurement,PL-GOV-US,2026-12-31,2026-12-01,735.00,9.0,USD,client.demo
+SKU-BLOCK-CURRENCY-901,Orion,Retail,Northwind Market,PL-RET-US,2026-11-18,2027-11-17,128.00,10.0,EUR,client.demo
+SKU-BLOCK-DUP-901,Orion,Retail,Northwind Market,PL-RET-US,2026-11-19,2027-11-18,130.00,8.0,USD,client.demo
+SKU-BLOCK-DUP-901,Orion,Retail,Northwind Market,PL-RET-US,2026-11-19,2027-11-18,130.00,8.0,USD,client.demo

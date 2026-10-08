@@ -667,3 +667,64 @@ $("#fileInput").addEventListener("change", (event) => {
 });
 
 loadSeed();
+
+function setRuleEngineOpen(isOpen) {
+  const drawer = $("#ruleEngineDrawer");
+  const backdrop = $("#ruleEngineBackdrop");
+  const trigger = $("#ruleEngineButton");
+  drawer.hidden = !isOpen;
+  backdrop.hidden = !isOpen;
+  trigger.setAttribute("aria-expanded", String(isOpen));
+  if (isOpen) $("#closeRuleEngineButton").focus();
+}
+
+$("#ruleEngineButton").addEventListener("click", () => setRuleEngineOpen(true));
+$("#closeRuleEngineButton").addEventListener("click", () => setRuleEngineOpen(false));
+$("#ruleEngineBackdrop").addEventListener("click", () => setRuleEngineOpen(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !$("#ruleEngineDrawer").hidden) setRuleEngineOpen(false);
+});
+
+const activeFilters = { businessGroup: "All", brand: "All", status: "All", priceList: "All" };
+
+function filteredFindings() {
+  return currentAnalysis.findings.filter((finding) =>
+    (activeFilters.businessGroup === "All" || finding.businessGroup === activeFilters.businessGroup) &&
+    (activeFilters.brand === "All" || finding.brand === activeFilters.brand) &&
+    (activeFilters.status === "All" || finding.status === activeFilters.status.toUpperCase()) &&
+    (activeFilters.priceList === "All" || finding.priceList === activeFilters.priceList)
+  );
+}
+
+function renderFilteredFindings() {
+  renderFindings(filteredFindings());
+  document.querySelectorAll(".filter-grid label").forEach((label) => {
+    const select = label.querySelector("select");
+    label.classList.toggle("is-active", select.value !== "All");
+  });
+}
+
+function activateSection(section, target) {
+  document.querySelectorAll(".nav-tabs a[data-section]").forEach((link) => {
+    const active = link.dataset.section === section;
+    link.classList.toggle("active", active);
+    link.setAttribute("aria-current", active ? "page" : "false");
+  });
+  document.querySelector(target)?.scrollIntoView({ behavior: "smooth", block: section === "overview" ? "start" : "center" });
+}
+
+["businessGroup", "brand", "status", "priceList"].forEach((name) => {
+  const select = $(`#${name}Filter`);
+  select.addEventListener("change", () => {
+    activeFilters[name] = select.value;
+    renderFilteredFindings();
+    activateSection("findings", "#filterBand");
+  });
+});
+
+document.querySelectorAll(".nav-tabs a[data-section]").forEach((link) => {
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    activateSection(link.dataset.section, link.getAttribute("href"));
+  });
+});

@@ -1,0 +1,6 @@
+sku,brand,business_group,customer,price_list,effective_date,expiry_date,list_price,discount_pct,currency,requested_by
+SKU-DEMO-100,Orion,Retail,Northwind Market,PL-RET-US,2026-11-01,2027-10-31,119.00,12.0,USD,client.demo
+SKU-DEMO-101,Auralux,Enterprise,ACME Operations,PL-ENT-US,2026-11-01,2027-10-31,820.00,18.0,USD,client.demo
+SKU-DEMO-102,Nexa,Distributor,Harbor Distribution,PL-DIST-US,2026-11-01,2027-10-31,244.00,10.0,USD,client.demo
+SKU-DEMO-103,MedAxis,Healthcare,CityCare,PL-HEALTH-US,2026-11-01,2027-10-31,1320.00,8.0,USD,client.demo
+SKU-DEMO-104,Nexa,Government,Civic Procurement,PL-GOV-US,2026-11-01,2027-10-31,730.00,6.0,USD,client.demo

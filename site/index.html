@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PriceGuard AI Prototype</title>
+    <title>PriceGuard AI | Pricing Quality Command Center</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -13,24 +13,35 @@
         <span>PriceGuard<span> AI</span></span>
       </a>
       <nav class="nav-tabs" aria-label="Primary">
-        <a class="active" href="/">Quality Gate</a>
-        <a href="#findingsTable">Findings</a>
-        <a href="#detailPane">RCA</a>
+        <a class="active" data-section="overview" href="#overview">Command Center</a>
+        <a data-section="findings" href="#filterBand">Prioritized findings</a>
+        <a data-section="rca" href="#detailPane">RCA handoff</a>
       </nav>
       <div class="topbar-right">
         <span class="status-dot"></span>
         <span id="health">Checking</span>
+        <button id="ruleEngineButton" class="icon-button" type="button" aria-label="Open Rule Engine" title="Rule Engine"><span aria-hidden="true">&#9881;</span></button>
         <button class="ghost-button" type="button">PG</button>
       </div>
     </header>
 
     <main class="app-shell">
-      <section class="page-head">
-        <div>
-          <h1>Pricing Quality Explorer</h1>
-          <p>PriceGuard demo &middot; 1,000 seeded pricing rows &middot; Select a finding to inspect the evidence chain</p>
+      <section class="page-head" id="overview">
+        <div class="page-head-copy">
+          <p class="eyebrow"><span class="live-dot"></span> Pricing governance, before release</p>
+          <h1>Find the pricing decisions that need a human <em>before</em> they reach production.</h1>
+          <p>PriceGuard applies deterministic policy checks, explains exceptions with evidence, and creates a clean handoff from pricing operations to engineering.</p>
+          <div class="hero-actions">
+            <button id="analyzeButton" class="primary">Analyze pricing batch <span aria-hidden="true">&rarr;</span></button>
+            <label class="file-control"><input id="fileInput" type="file" accept=".csv,text/csv" /><span>Upload CSV</span></label>
+          </div>
         </div>
-        <button id="analyzeButton" class="primary">Analyze Batch</button>
+        <aside class="hero-proof" aria-label="Operating model">
+          <p class="section-label">The operating model</p>
+          <div><span>01</span><p><strong>Rules decide</strong><br>Deterministic controls flag pricing risk.</p></div>
+          <div><span>02</span><p><strong>AI explains</strong><br>Evidence is made decision-ready.</p></div>
+          <div><span>03</span><p><strong>Humans approve</strong><br>No production price changes automatically.</p></div>
+        </aside>
       </section>
 
       <section class="control-band">
@@ -40,20 +51,16 @@
           <p>CPI +3.2% &middot; PPI Metals +4.8% &middot; Steel Index +6.1% &middot; New relationship pressure +2.9%</p>
         </div>
         <div class="actions">
-          <label class="file-control">
-            <input id="fileInput" type="file" accept=".csv,text/csv" />
-            <span>Upload CSV</span>
-          </label>
-          <button id="seedButton">Reload Seed</button>
+          <button id="seedButton">Reset demo data</button>
         </div>
       </section>
 
-      <section class="filter-band">
+      <section class="filter-band" id="filterBand">
         <p class="section-label">Filter by hierarchy</p>
         <div class="filter-grid">
           <label>
             Business Group
-            <select>
+            <select id="businessGroupFilter">
               <option>All</option>
               <option>Retail</option>
               <option>Enterprise</option>
@@ -62,7 +69,7 @@
           </label>
           <label>
             Brand
-            <select>
+            <select id="brandFilter">
               <option>All</option>
               <option>Orion</option>
               <option>Auralux</option>
@@ -72,7 +79,7 @@
           </label>
           <label>
             Status
-            <select>
+            <select id="statusFilter">
               <option>All</option>
               <option>Review</option>
               <option>Block</option>
@@ -80,7 +87,7 @@
           </label>
           <label>
             Price List
-            <select>
+            <select id="priceListFilter">
               <option>All</option>
               <option>PL-RET-US</option>
               <option>PL-ENT-US</option>
@@ -90,66 +97,25 @@
         </div>
       </section>
 
-      <section class="rule-engine" aria-label="Rule engine settings">
-        <div class="rule-engine-head">
-          <div>
-            <p class="section-label">Rule Engine Settings</p>
-            <h2>Pricing rules define PASS, REVIEW and BLOCK decisions</h2>
-            <p>Configure limits, anomaly thresholds and allowed brand relationships before running the quality gate.</p>
-          </div>
-          <div class="rule-actions">
-            <button id="resetRulesButton" type="button">Reset Defaults</button>
-            <button id="applyRulesButton" class="primary" type="button">Apply Rules</button>
-          </div>
-        </div>
-
-        <div class="rule-grid">
-          <article class="rule-card">
-            <div class="rule-card-head">
-              <h3>Discount limits</h3>
-              <span>Hard block</span>
-            </div>
-            <div id="discountRules" class="rule-list"></div>
-          </article>
-
-          <article class="rule-card">
-            <div class="rule-card-head">
-              <h3>Anomaly thresholds</h3>
-              <span>Review logic</span>
-            </div>
-            <div id="thresholdRules" class="rule-list"></div>
-          </article>
-
-          <article class="rule-card relationship-card">
-            <div class="rule-card-head">
-              <h3>Brand relationship matrix</h3>
-              <span>Allowed combinations</span>
-            </div>
-            <div id="relationshipRules" class="relationship-grid"></div>
-          </article>
-        </div>
-        <p id="ruleStatus" class="rule-status">Rules loaded from deterministic engine defaults.</p>
-      </section>
-
       <section class="summary-grid" aria-label="Analysis summary">
         <div class="metric">
-          <span>Total</span>
+          <span>Rows scanned</span>
           <strong id="totalCount">0</strong>
         </div>
         <div class="metric pass">
-          <span>Valid</span>
+          <span>Cleared</span>
           <strong id="passCount">0</strong>
         </div>
         <div class="metric review">
-          <span>Review</span>
+          <span>Needs review</span>
           <strong id="reviewCount">0</strong>
         </div>
         <div class="metric block">
-          <span>Block</span>
+          <span>Blocked</span>
           <strong id="blockCount">0</strong>
         </div>
         <div class="metric risk">
-          <span>Risk score</span>
+          <span>Batch risk</span>
           <strong id="riskScore">0</strong>
         </div>
       </section>
@@ -203,6 +169,49 @@
       </section>
     </main>
 
+    <div id="ruleEngineBackdrop" class="rule-engine-backdrop" hidden></div>
+
+      <aside class="rule-engine-drawer" id="ruleEngineDrawer" aria-label="Rule Engine" aria-modal="true" role="dialog" hidden>
+      <button id="closeRuleEngineButton" class="drawer-close" type="button" aria-label="Close Rule Engine">&times;</button>
+        <div class="rule-engine-head">
+          <div>
+            <p class="section-label">Rule Engine Settings</p>
+            <h2>Pricing rules define PASS, REVIEW and BLOCK decisions</h2>
+            <p>Configure limits, anomaly thresholds and allowed brand relationships before running the quality gate.</p>
+          </div>
+          <div class="rule-actions">
+            <button id="resetRulesButton" type="button">Reset Defaults</button>
+            <button id="applyRulesButton" class="primary" type="button">Apply Rules</button>
+          </div>
+        </div>
+
+        <div class="rule-grid">
+          <article class="rule-card">
+            <div class="rule-card-head">
+              <h3>Discount limits</h3>
+              <span>Hard block</span>
+            </div>
+            <div id="discountRules" class="rule-list"></div>
+          </article>
+
+          <article class="rule-card">
+            <div class="rule-card-head">
+              <h3>Anomaly thresholds</h3>
+              <span>Review logic</span>
+            </div>
+            <div id="thresholdRules" class="rule-list"></div>
+          </article>
+
+          <article class="rule-card relationship-card">
+            <div class="rule-card-head">
+              <h3>Brand relationship matrix</h3>
+              <span>Allowed combinations</span>
+            </div>
+            <div id="relationshipRules" class="relationship-grid"></div>
+          </article>
+        </div>
+        <p id="ruleStatus" class="rule-status">Rules loaded from deterministic engine defaults.</p>
+      </aside>
     <script src="/static/app.js"></script>
   </body>
 </html>
