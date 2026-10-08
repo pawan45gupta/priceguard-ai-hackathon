@@ -30,6 +30,7 @@ Use Codex where it creates repeatable engineering leverage:
 Recommended reusable skills:
 
 - `priceguard-rca`
+- `priceguard-regression`
 - `priceguard-release-freeze`
 
 Recommended agents for the pilot:
@@ -39,6 +40,15 @@ Recommended agents for the pilot:
 - RCA Agent: Codex workflow for engineering diagnosis after a finding is selected.
 - Regression Agent: Codex workflow that adds tests for confirmed findings.
 - Freeze Agent: Codex workflow that prepares final release artifacts and readiness checks.
+
+In the repository, the Explanation Agent is `priceguard-prototype/explanation_agent.py`, and the three Codex workflows are subagents in `.codex/agents/` backed by the skills above. `AGENTS.md` holds the shared instructions and boundaries.
+
+Explanation Agent controls:
+
+- Input is a whitelisted, length-capped evidence bundle for one finding.
+- The status in the response is copied from the rule engine.
+- The answer is rejected if it cites a rule or a figure that is not in the bundle.
+- With no key, a failed call, or a rejected answer, the deterministic summary is returned with the reason.
 
 ## Plugin Decision
 
@@ -74,10 +84,13 @@ Prototype stack:
 - Python 3 standard-library backend.
 - Vanilla HTML, CSS, and JavaScript frontend.
 - No external dependencies, so the demo runs immediately.
+- Optional `OPENAI_API_KEY` turns on the model-backed explanation; without it the prototype stays offline.
 
 ## API Contract
 
 - `POST /api/analyze`: classify pricing rows and return summary plus findings.
+- `GET /api/findings/{id}/explanation`: return the Explanation Agent's summary for a finding from the last analysis.
+- `POST /api/explain`: return the Explanation Agent's summary for a finding supplied by the UI.
 - `GET /api/findings/{id}/rca`: return evidence bundle, likely root cause, code references, and suggested test plan.
 - `POST /api/findings/{id}/regression-test`: generate a regression-test stub for engineering handoff.
 - `POST /api/feedback`: capture reviewer accept or reject feedback.

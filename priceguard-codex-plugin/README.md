@@ -9,4 +9,9 @@ Add an MCP server later when PriceGuard needs controlled live access to systems 
 ## Included skills
 
 - `priceguard-rca`: investigate a PriceGuard finding and turn evidence into a targeted engineering action.
+- `priceguard-regression`: turn a confirmed finding into regression tests and run the suite.
 - `priceguard-release-freeze`: prepare the final freeze pack and verify scope, tests, governance, and handoff artifacts.
+
+## Subagents
+
+`.codex/agents/` at the repository root defines three Codex subagents that run these workflows as separate roles: `priceguard_rca` (read-only), `priceguard_regression` (edits tests only), and `priceguard_freeze`. Ask for them by name. Repository-wide instructions are in `AGENTS.md`.

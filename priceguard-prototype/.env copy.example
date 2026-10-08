@@ -1,0 +1,8 @@
+# Copy this file to .env (same folder) and fill in the key.
+# .env is ignored by git. Never put a real key in .env.example.
+OPENAI_API_KEY=
+
+# Optional
+# PRICEGUARD_EXPLAIN_MODEL=gpt-6-luna
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# PRICEGUARD_EXPLAIN_TIMEOUT=12

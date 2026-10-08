@@ -738,6 +738,12 @@ tr.selected {
   color: var(--muted);
 }
 
+.rca-block ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
