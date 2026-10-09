@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 
+import explanation_agent
+
 
 ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = ROOT / "static"
@@ -716,7 +718,15 @@ class PriceGuardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
-            json_response(self, 200, {"status": "ok", "service": "priceguard"})
+            json_response(
+                self,
+                200,
+                {
+                    "status": "ok",
+                    "service": "priceguard",
+                    "explanationAgent": explanation_agent.agent_mode(),
+                },
+            )
             return
         if parsed.path == "/api/rule-settings":
             json_response(self, 200, {"ruleSettings": clone_rule_settings()})
@@ -740,6 +750,14 @@ class PriceGuardHandler(BaseHTTPRequestHandler):
                 json_response(self, 404, {"error": "finding not found"})
                 return
             json_response(self, 200, rca_for_finding(finding))
+            return
+        if re.match(r"^/api/findings/[^/]+/explanation$", parsed.path):
+            finding_id = unquote(parsed.path.split("/")[3])
+            finding = ensure_finding(finding_id)
+            if not finding:
+                json_response(self, 404, {"error": "finding not found"})
+                return
+            json_response(self, 200, explanation_agent.explain_finding(finding))
             return
         self.serve_static(parsed.path)
 
@@ -770,6 +788,18 @@ class PriceGuardHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, regression_test_for(finding))
             return
+        if parsed.path == "/api/explain":
+            # The browser runs its own copy of the rule engine, so it sends the
+            # finding it is showing. The agent reduces it to a bounded bundle.
+            payload = self.read_json()
+            finding = payload.get("finding")
+            if not isinstance(finding, dict):
+                finding = ensure_finding(str(payload.get("findingId", "")))
+            if not finding or not finding.get("evidence"):
+                json_response(self, 400, {"error": "finding with evidence is required"})
+                return
+            json_response(self, 200, explanation_agent.explain_finding(finding))
+            return
         if parsed.path == "/api/feedback":
             payload = self.read_json()
             json_response(
@@ -791,9 +821,10 @@ class PriceGuardHandler(BaseHTTPRequestHandler):
             return {}
         raw = self.rfile.read(length).decode("utf-8")
         try:
-            return json.loads(raw)
+            payload = json.loads(raw)
         except json.JSONDecodeError:
             return {}
+        return payload if isinstance(payload, dict) else {}
 
     def serve_static(self, path: str) -> None:
         if path in ("", "/"):
@@ -826,13 +857,44 @@ def ensure_finding(finding_id: str) -> Dict:
     return FINDING_CACHE.get(finding_id, {})
 
 
+def load_env_file(path: Path) -> List[str]:
+    """Load KEY=value lines from a .env file into the environment.
+
+    Variables that are already set win, so a real environment variable always
+    overrides the file. Returns the names that were loaded, never the values.
+    """
+    loaded: List[str] = []
+    if not path.is_file():
+        return loaded
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+            loaded.append(key)
+    return loaded
+
+
 def main() -> None:
+    load_env_file(ROOT / ".env")
     parser = argparse.ArgumentParser(description="Run the PriceGuard prototype server")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     server = ThreadingHTTPServer((args.host, args.port), PriceGuardHandler)
     print(f"PriceGuard prototype running at http://{args.host}:{args.port}")
+    mode = explanation_agent.agent_mode()
+    if mode["mode"] == "llm":
+        print(f"Explanation agent: model {mode['model']}")
+    else:
+        print("Explanation agent: no OPENAI_API_KEY found, using the rule-based summary")
     server.serve_forever()
 
 

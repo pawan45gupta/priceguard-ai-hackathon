@@ -19,10 +19,15 @@ The seeded demo returns:
 - 17 block
 - 74 risk score
 
+To turn on the AI explanation, set `OPENAI_API_KEY` before starting the server. Without it the prototype runs fully offline. See `priceguard-prototype/README.md`.
+
 ## Repository Layout
 
 - `priceguard-prototype/`: runnable no-dependency prototype.
-- `priceguard-codex-plugin/`: skills-only Codex plugin skeleton for RCA and code-freeze workflows.
+- `priceguard-codex-plugin/`: skills-only Codex plugin for RCA, regression-test, and code-freeze workflows.
+- `AGENTS.md`: instructions Codex reads first: layout, commands, rule catalogue, and boundaries.
+- `.codex/agents/`: Codex subagents for RCA, regression tests, and release freeze.
+- `demo-uploads/`: client-demo CSVs with expected outcomes.
 - `PriceGuard_Freeze_Pack.md`: architecture, stack, governance, and freeze notes.
 - `PriceGuard_Demo_Script.md`: five-minute presenter flow.
 - `PriceGuard_Code_Freeze_Manifest.json`: machine-readable freeze manifest.
@@ -39,4 +44,4 @@ The seeded demo returns:
 
 Rules decide. AI explains. Humans approve.
 
-The prototype never changes production prices. AI output remains read-only and advisory.
+The prototype never changes production prices. AI output remains read-only and advisory. The Explanation agent's answer is checked against the rule evidence and replaced by a rule-based summary if it cites anything that is not there.

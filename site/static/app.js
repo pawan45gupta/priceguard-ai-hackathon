@@ -541,6 +541,7 @@ function renderDetail(finding) {
     <h2>Recommendation</h2>
     <p>${finding.recommendation}</p>
     <div class="detail-actions">
+      <button onclick="explainFinding()">Explain with AI</button>
       <button class="primary" onclick="runRca()">Run RCA</button>
       <button onclick="generateTest()">Generate Test</button>
       <button onclick="submitFeedback('accepted')">Accept</button>
@@ -571,6 +572,58 @@ function rcaForFinding(finding) {
       { source: "code_reference", detail: codeHotspots[codeKey] },
     ],
   };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+}
+
+// Rule-based explanation, used when the backend or the model is not available.
+function templateExplanation(finding, reason) {
+  return {
+    source: "template",
+    fallbackReason: reason,
+    summary: finding.explanation,
+    whyFlagged: finding.evidence.map((item) => `${item.rule_id}: ${item.detail}`),
+    whatToCheck: [finding.recommendation],
+  };
+}
+
+function renderExplanation(finding, result) {
+  const fromModel = result.source === "llm";
+  const sourceNote = fromModel
+    ? `Written by the Explanation agent (${escapeHtml(result.model)}) from the evidence above and checked against it.`
+    : `Rule-based summary shown (${escapeHtml(result.fallbackReason || "AI explanation unavailable")}).`;
+  const list = (items) => (items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  $("#actionOutput").innerHTML = `
+    <div class="rca-block">
+      <h2>Explanation</h2>
+      <p>${escapeHtml(result.summary)}</p>
+      <p><strong>Why it was flagged</strong></p>
+      <ul>${list(result.whyFlagged)}</ul>
+      <p><strong>What to check</strong></p>
+      <ul>${list(result.whatToCheck)}</ul>
+      <p>${sourceNote} Status ${statusBadge(finding.status)} is set by the rules, and a person approves any pricing change.</p>
+    </div>
+  `;
+}
+
+async function explainFinding() {
+  const finding = currentFinding();
+  $("#actionOutput").innerHTML = `<div class="rca-block"><h2>Explanation</h2><p>Asking the Explanation agent…</p></div>`;
+  let result;
+  try {
+    const response = await fetch("/api/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ finding }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    result = await response.json();
+  } catch (error) {
+    result = templateExplanation(finding, "backend not reachable");
+  }
+  if (selectedFindingId === finding.id) renderExplanation(finding, result);
 }
 
 function runRca() {

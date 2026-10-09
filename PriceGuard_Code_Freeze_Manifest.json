@@ -19,6 +19,7 @@
     "shape": "skills-only",
     "skills": [
       "priceguard-rca",
+      "priceguard-regression",
       "priceguard-release-freeze"
     ],
     "mcp_server_needed_now": false,
@@ -28,6 +29,11 @@
       "ticket creation",
       "git provider and CI status lookup",
       "deployment metadata lookup"
+    ],
+    "subagents": [
+      "priceguard_rca",
+      "priceguard_regression",
+      "priceguard_freeze"
     ]
   },
   "artifacts": [
@@ -35,14 +41,18 @@
     "PriceGuard_Demo_Script.md",
     "PriceGuard_Code_Freeze_Manifest.json",
     "priceguard-prototype/",
-    "priceguard-codex-plugin/"
+    "priceguard-codex-plugin/",
+    "AGENTS.md",
+    ".codex/agents/",
+    "demo-uploads/"
   ],
   "verification": {
     "unit_tests": "python3 -m unittest discover -s tests",
-    "unit_test_status": "passed",
+    "unit_test_status": "passed (15 tests, 2026-10-09)",
     "api_smoke_status": "passed",
     "ui_smoke_status": "passed",
-    "skill_quick_validate": "blocked by missing PyYAML in local validator environment; frontmatter and manifest checks passed"
+    "skill_quick_validate": "blocked by missing PyYAML in local validator environment; frontmatter and manifest checks passed",
+    "explanation_agent_live_model_call": "not verified: no API key was available; request and response handling is covered by tests with a fake transport"
   },
   "governance": {
     "pricing_authority": "deterministic rules and existing pricing application",
@@ -51,7 +61,24 @@
   },
   "known_gaps": [
     "prototype uses seeded demo data, not live pricing systems",
-    "OpenAI explanation endpoint is represented by deterministic evidence packaging for the offline demo",
-    "MCP server is deferred until controlled live system access is approved"
-  ]
+    "MCP server is deferred until controlled live system access is approved",
+    "Explanation agent has not been run against the live model endpoint; confirm the model name and one real call once the API key is issued",
+    "the UI computes PASS, REVIEW, and BLOCK with its own JavaScript copy of the rule engine (static/app.js); server.py and app.js must be changed together and have already drifted on REVIEW owner and top-concern labels",
+    "reviewer feedback is acknowledged but not stored"
+  ],
+  "explanation_agent": {
+    "path": "priceguard-prototype/explanation_agent.py",
+    "endpoints": [
+      "GET /api/findings/{id}/explanation",
+      "POST /api/explain"
+    ],
+    "api_key_env": "OPENAI_API_KEY",
+    "default_model": "gpt-6-luna",
+    "without_key": "deterministic template",
+    "output_checks": [
+      "status copied from rule engine",
+      "cited rules must be in the evidence bundle",
+      "figures must be in the evidence bundle"
+    ]
+  }
 }
